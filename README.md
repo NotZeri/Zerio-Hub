@@ -19,7 +19,7 @@ The setting save should be here
 C:\Users\YourName\.zerio_hub_settings.json
 ```
 
-And Projects get saved too they should be here
+And Projects get saved too, they should be here
 
 ```
 C:/Users/YourName/Documents/ZerioProjects/NameOfProject
