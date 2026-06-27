@@ -9,6 +9,16 @@ Yeah, I know, not a lot
 ![Downloads](https://img.shields.io/github/downloads/NotZeri/Zerio-Hub/total?color=green)
 ![Static Badge](https://img.shields.io/badge/verson-1.0.0-blue?label=verson)
 
+# Important!
+
+If you ever delete the file, it won't delete all of it because it saves your settings
+
+The setting save should be here
+
+```
+C:\Users\YourName\.zerio_hub_settings.json
+```
+
 ## ✨ Features
 
 ![Status](https://img.shields.io/badge/Status-In%20Development-orange)
