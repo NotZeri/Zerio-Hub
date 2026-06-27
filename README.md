@@ -39,15 +39,19 @@ Download the zip, then extract
 
 Install dependencies:
 
+Run this in CMD
 ```bash
 pip install -r requirements.txt
 ```
 
 Run the project:
 
+You can run this in CMD or just open it
 ```bash
 python Zerio Hub.pyw
 ```
+
+Sometimes your PC only wants administrators to do stuff like edit Roblox
 
 ---
 
