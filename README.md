@@ -6,7 +6,7 @@ Downloads are broken, there is about 4+ :(
 Yeah, I know, not a lot
 
 
-![Downloads](https://img.shields.io/github/downloads/NotZeri/Zerio-Hub/total?color=green)
+![Downloads](https://img.shields.io/github/downloads/NotZeri/Zeri/total?color=green)
 ![Static Badge](https://img.shields.io/badge/verson-1.0.0-blue?label=verson)
 
 # Important!
