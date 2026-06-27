@@ -67,7 +67,7 @@ You can run this in CMD or just open it
 python Zerio Hub.pyw
 ```
 
-Sometimes your PC only wants administrators to do stuff like edit Roblox
+Sometimes your PC only wants administrators to do stuff like edit Roblox, so you need to run it using Administrator CMD.
 
 ---
 
