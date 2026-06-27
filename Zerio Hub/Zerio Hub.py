@@ -1,12 +1,16 @@
-# Should be pretty easy to read!
+# Should be easy to read!
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# IMPORTS & AUTO-INSTALL
+# IMPORTS & CRASH FIX
 # ═══════════════════════════════════════════════════════════════════════════════
-import sys, os, json, subprocess, threading, time, platform, tkinter as tk
+import sys, os, json, subprocess, threading, time, platform, tkinter as tk, io, webbrowser
 from datetime import datetime
 from pathlib import Path
 from tkinter import filedialog
+
+# Force Windows to use UTF-8 so special characters never crash the app again
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
 def ensure_deps():
     deps = {"customtkinter": "customtkinter", "psutil": "psutil", "PIL": "Pillow"}
@@ -37,9 +41,10 @@ HOVER_ACC    = "#A855F7"
 TXT          = "#FFFFFF"
 SUBTXT       = "#AAAAAA"
 FONT         = "Segoe UI"
-VERSION      = "2.4.0"
+VERSION      = "2.6.0"
 SETTINGS_FP  = Path.home() / ".zerio_hub_settings.json"
 PROJECTS_DIR = Path.home() / "Documents" / "ZerioProjects"
+RELEASE_LINK = "https://github.com/NotZeri/Zerio-Hub/releases/tag/Script"
 
 ACCENT_PRESETS = {
     "Purple": "#8B5CF6", "Blue": "#3B82F6", "Green": "#10B981",
@@ -57,30 +62,19 @@ class SplashScreen(tk.Toplevel):
         self.overrideredirect(True)
         self.attributes("-topmost", True)
         self.configure(bg="#000000")
-        
-        # Force Fullscreen
         try: self.state("zoomed")
         except: self.geometry(f"{self.winfo_screenwidth()}x{self.winfo_screenheight()}+0+0")
 
-        # Center Frame
         frame = tk.Frame(self, bg="#000000")
         frame.place(relx=0.5, rely=0.5, anchor="center")
 
-        # Main Title
-        tk.Label(frame, text="ZERIO HUB", font=(FONT, 72, "bold"), 
-                 fg=ACCENT, bg="#000000").pack(pady=(0, 30))
+        tk.Label(frame, text="ZERIO HUB", font=(FONT, 72, "bold"), fg=ACCENT, bg="#000000").pack(pady=(0, 30))
+        tk.Label(frame, text="Launch all python scripts", font=(FONT, 18), fg="#444444", bg="#000000").pack(pady=(0, 5))
+        tk.Label(frame, text="Make it easy for yourself", font=(FONT, 18), fg="#444444", bg="#000000").pack(pady=(0, 50))
 
-        # Taglines
-        tk.Label(frame, text="Launch all python scripts", font=(FONT, 18), 
-                 fg="#444444", bg="#000000").pack(pady=(0, 5))
-        tk.Label(frame, text="Make it easy for yourself", font=(FONT, 18), 
-                 fg="#444444", bg="#000000").pack(pady=(0, 50))
-
-        # Sleek Loading Bar Background
         self.canvas = tk.Canvas(frame, width=300, height=4, bg="#1a1a1a", highlightthickness=0)
         self.canvas.pack()
         self.bar = self.canvas.create_rectangle(0, 0, 0, 4, fill=ACCENT, width=0)
-        
         self._animate_bar(0)
 
     def _animate_bar(self, width):
@@ -97,7 +91,6 @@ class SplashScreen(tk.Toplevel):
             self.after(10, self._fade_out)
         else:
             self.destroy()
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # MAIN APPLICATION
@@ -140,6 +133,7 @@ class ZerioHub(ctk.CTk):
         self.auto_save       = False
         self.fav_filter      = False
         self._original_content = ""
+        self.downloaded_builtins = False
 
         self._load_settings()
         
@@ -162,10 +156,10 @@ class ZerioHub(ctk.CTk):
         self.mini_btn.overrideredirect(True)
         self.mini_btn.attributes("-topmost", True)
         self.mini_btn.configure(bg="#000000")
-        self.mini_btn.attributes("-alpha", 0.85) # Semi-transparent glass effect
+        self.mini_btn.attributes("-alpha", 0.85)
 
         btn_w, btn_h = 160, 34
-        r = 12 # Corner radius
+        r = 12
         sw = self.winfo_screenwidth()
         x = (sw - btn_w) // 2
         self.mini_btn.geometry(f"{btn_w}x{btn_h}+{x}+12")
@@ -173,10 +167,8 @@ class ZerioHub(ctk.CTk):
         canvas = tk.Canvas(self.mini_btn, width=btn_w, height=btn_h, bg="#000000", highlightthickness=0)
         canvas.pack()
 
-        # Helper to draw the button shape cleanly
         def draw_btn(fill_color, border_color, text_color):
             canvas.delete("all")
-            # Draw 4 corners and 2 rectangles to make a perfect rounded rect
             canvas.create_arc(0, 0, 2*r, 2*r, start=90, extent=90, fill=fill_color, outline=border_color, width=1)
             canvas.create_arc(btn_w-2*r, 0, btn_w, 2*r, start=0, extent=90, fill=fill_color, outline=border_color, width=1)
             canvas.create_arc(0, btn_h-2*r, 2*r, btn_h, start=180, extent=90, fill=fill_color, outline=border_color, width=1)
@@ -185,18 +177,12 @@ class ZerioHub(ctk.CTk):
             canvas.create_rectangle(0, r, btn_w, btn_h-r, fill=fill_color, outline="")
             canvas.create_text(btn_w//2, btn_h//2, text="Open Zerio Hub", font=(FONT, 9, "bold"), fill=text_color)
 
-        # Initial Draw
         draw_btn("#1a1a1a", "#333333", SUBTXT)
 
-        # Hover Effects
-        def on_enter(e): draw_btn(ACCENT, ACCENT, TXT)
-        def on_leave(e): draw_btn("#1a1a1a", "#333333", SUBTXT)
-
-        canvas.bind("<Enter>", on_enter)
-        canvas.bind("<Leave>", on_leave)
+        canvas.bind("<Enter>", lambda e: draw_btn(ACCENT, ACCENT, TXT))
+        canvas.bind("<Leave>", lambda e: draw_btn("#1a1a1a", "#333333", SUBTXT))
         canvas.bind("<Button-1>", lambda e: self._restore_from_minimize())
         canvas.configure(cursor="hand2")
-
         self.mini_btn.withdraw()
 
     def _minimize(self):
@@ -208,7 +194,72 @@ class ZerioHub(ctk.CTk):
         self.deiconify()
 
     # ──────────────────────────────────────────────────────────────────────────
-    # ANIMATIONS
+    # CENTERED MANUAL DOWNLOAD POPUP
+    # ──────────────────────────────────────────────────────────────────────────
+    def _show_manual_download_prompt(self):
+        if self.downloaded_builtins: return
+
+        popup = tk.Toplevel(self)
+        popup.overrideredirect(True)
+        popup.attributes("-topmost", True)
+        popup.configure(bg="#000000")
+        
+        w, h = 480, 220
+        r = 16
+        sw = self.winfo_screenwidth()
+        sh = self.winfo_screenheight()
+        x = (sw - w) // 2
+        y = (sh - h) // 2
+        popup.geometry(f"{w}x{h}+{x}+{y}")
+
+        canvas = tk.Canvas(popup, width=w, height=h, bg="#000000", highlightthickness=0)
+        canvas.pack()
+
+        # Draw Background
+        canvas.create_arc(0, 0, 2*r, 2*r, start=90, extent=90, fill="#1e1e1e", outline="#333333", width=1)
+        canvas.create_arc(w-2*r, 0, w, 2*r, start=0, extent=90, fill="#1e1e1e", outline="#333333", width=1)
+        canvas.create_arc(0, h-2*r, 2*r, h, start=180, extent=90, fill="#1e1e1e", outline="#333333", width=1)
+        canvas.create_arc(w-2*r, h-2*r, w, h, start=270, extent=90, fill="#1e1e1e", outline="#333333", width=1)
+        canvas.create_rectangle(r, 0, w-r, h, fill="#1e1e1e", outline="")
+        canvas.create_rectangle(0, r, w, h-r, fill="#1e1e1e", outline="")
+
+        # Text
+        canvas.create_text(w//2, 35, text="Download Built-in Scripts", font=(FONT, 16, "bold"), fill=TXT)
+        canvas.create_text(w//2, 65, text="Download this zip file and put the scripts", font=(FONT, 10), fill=SUBTXT)
+        canvas.create_text(w//2, 82, text="in the zip file in the Scripts folder with the Zerio Hub.", font=(FONT, 10), fill=SUBTXT)
+
+        # Open Link Button
+        open_rect = canvas.create_rectangle(90, 120, 240, 155, fill=ACCENT, outline="")
+        open_text = canvas.create_text(165, 137, text="Open Download Page", font=(FONT, 10, "bold"), fill=TXT)
+
+        # Close Button
+        close_rect = canvas.create_rectangle(250, 120, 390, 155, fill="#2a2a2a", outline="#333333")
+        close_text = canvas.create_text(320, 137, text="Maybe Later", font=(FONT, 10), fill=SUBTXT)
+
+        # Actions
+        def open_link(e=None):
+            webbrowser.open(RELEASE_LINK)
+            self.downloaded_builtins = True
+            self._save_settings()
+            popup.destroy()
+
+        def close_popup(e=None):
+            self.downloaded_builtins = True # Don't spam them every time
+            self._save_settings()
+            popup.destroy()
+
+        for item in [open_rect, open_text]:
+            canvas.tag_bind(item, "<Button-1>", open_link)
+            canvas.tag_bind(item, "<Enter>", lambda e: canvas.itemconfig(open_rect, fill=HOVER_ACC))
+            canvas.tag_bind(item, "<Leave>", lambda e: canvas.itemconfig(open_rect, fill=ACCENT))
+
+        for item in [close_rect, close_text]:
+            canvas.tag_bind(item, "<Button-1>", close_popup)
+            canvas.tag_bind(item, "<Enter>", lambda e: canvas.itemconfig(close_rect, fill="#333333"))
+            canvas.tag_bind(item, "<Leave>", lambda e: canvas.itemconfig(close_rect, fill="#2a2a2a"))
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # ANIMATIONS & WINDOW MGMT
     # ──────────────────────────────────────────────────────────────────────────
     def _fade_in(self):
         current = float(self.attributes("-alpha"))
@@ -337,7 +388,7 @@ class ZerioHub(ctk.CTk):
         inf = ctk.CTkFrame(side, fg_color="transparent")
         inf.pack(fill="x", padx=14, pady=(14, 4))
         ctk.CTkLabel(inf, text="ZERIO HUB", font=(FONT, 16, "bold"), text_color=self.accent).pack(anchor="w")
-        ctk.CTkLabel(inf, text="GUI Edition", font=(FONT, 8), text_color=SUBTXT).pack(anchor="w", pady=(0,8))
+        ctk.CTkLabel(inf, text="Overlay Edition", font=(FONT, 8), text_color=SUBTXT).pack(anchor="w", pady=(0,8))
         
         for label, txt in [("User:", os.getlogin()), ("PC:", platform.node()), ("Py:", f"Python {sys.version.split()[0]}")]:
             row = ctk.CTkFrame(inf, fg_color="transparent"); row.pack(fill="x", pady=1)
@@ -375,12 +426,11 @@ class ZerioHub(ctk.CTk):
             setattr(self, lbl_name, lbl)
 
     # ──────────────────────────────────────────────────────────────────────────
-    # CONTENT AREA
+    # CONTENT AREA & STATUS BAR
     # ──────────────────────────────────────────────────────────────────────────
     def _build_content_area(self):
         self.content_frame = ctk.CTkFrame(self.main_frame, fg_color=PANEL_COLOR, corner_radius=14)
         self.content_frame.grid(row=3, column=1, sticky="nsew", padx=(3, 6), pady=3)
-        
         self.content_frame.grid_rowconfigure(0, weight=1)
         self.content_frame.grid_columnconfigure(0, weight=1)
 
@@ -390,29 +440,22 @@ class ZerioHub(ctk.CTk):
         self._build_projects_page()
         self._build_about_page()
 
-    # ──────────────────────────────────────────────────────────────────────────
-    # STATUS BAR
-    # ──────────────────────────────────────────────────────────────────────────
     def _build_statusbar(self):
         bar = ctk.CTkFrame(self.main_frame, height=26, fg_color=PANEL_COLOR, corner_radius=14)
         bar.grid(row=4, column=0, columnspan=2, sticky="ew", padx=6, pady=(3, 6))
         bar.grid_propagate(False)
-
         status_left = ctk.CTkFrame(bar, fg_color="transparent")
         status_left.pack(side="left", padx=12)
         self.status_dot = ctk.CTkLabel(status_left, text=">", font=(FONT, 10, "bold"), text_color=self.accent)
         self.status_dot.pack(side="left")
         self.status_lbl = ctk.CTkLabel(status_left, text="Ready", font=(FONT, 9), text_color=TXT)
         self.status_lbl.pack(side="left", padx=6)
-
         self.status_right = ctk.CTkLabel(bar, text="", font=(FONT, 8), text_color="#555")
         self.status_right.pack(side="right", padx=12)
 
     def _set_status(self, text): self.status_lbl.configure(text=text)
-
     @staticmethod
-    def _sep(parent):
-        ctk.CTkFrame(parent, height=1, fg_color=BORDER_COLOR).pack(fill="x", padx=14, pady=6)
+    def _sep(parent): ctk.CTkFrame(parent, height=1, fg_color=BORDER_COLOR).pack(fill="x", padx=14, pady=6)
 
     # ══════════════════════════════════════════════════════════════════════════
     # PAGE SWITCHING
@@ -431,13 +474,15 @@ class ZerioHub(ctk.CTk):
             if p == pid: b.configure(fg_color="#252525", text_color=self.accent, hover_color="#2a2a2a")
             else: b.configure(fg_color="transparent", text_color=SUBTXT, hover_color="#2a2a2a")
 
+        if pid == "scripts":
+            self.after(500, self._show_manual_download_prompt)
+
     # ══════════════════════════════════════════════════════════════════════════
     # SCRIPTS PAGE
     # ══════════════════════════════════════════════════════════════════════════
     def _build_scripts_page(self):
         page = ctk.CTkFrame(self.content_frame, fg_color=PANEL_COLOR, corner_radius=0)
         self.pages["scripts"] = page
-
         page.grid_rowconfigure(0, weight=1)
         page.grid_columnconfigure(1, weight=1)
 
@@ -467,7 +512,6 @@ class ZerioHub(ctk.CTk):
 
         right = ctk.CTkFrame(page, fg_color="#111111", corner_radius=12)
         right.grid(row=0, column=1, sticky="nsew", padx=(3,6), pady=6)
-
         right.grid_rowconfigure(1, weight=1)
         right.grid_columnconfigure(0, weight=1)
 
@@ -494,17 +538,11 @@ class ZerioHub(ctk.CTk):
         if not self.sel_script: self._set_status("No script selected"); return
         if self.running: self._set_status("Already running a script"); return
         self._save_script(silent=True)
-        
         self.running = True
         self._set_status(f"Opened terminal for {self.sel_script.name}")
-        
         try:
             flags = subprocess.CREATE_NEW_CONSOLE
-            self.process = subprocess.Popen(
-                [sys.executable, str(self.sel_script)],
-                cwd=str(self.sel_script.parent),
-                creationflags=flags
-            )
+            self.process = subprocess.Popen([sys.executable, str(self.sel_script)], cwd=str(self.sel_script.parent), creationflags=flags)
         except Exception as e:
             self.running = False
             self._set_status(f"Run error: {e}")
@@ -531,7 +569,6 @@ class ZerioHub(ctk.CTk):
         self.pages["settings"] = page
         scroll = ctk.CTkScrollableFrame(page, fg_color="transparent", corner_radius=0)
         scroll.pack(fill="both", expand=True, padx=30, pady=20)
-
         ctk.CTkLabel(scroll, text="Settings", font=(FONT, 22, "bold"), text_color=TXT).pack(anchor="w", pady=(0, 16))
 
         self._section_label(scroll, "Accent Color")
@@ -545,8 +582,7 @@ class ZerioHub(ctk.CTk):
 
         self._section_label(scroll, "Font Size")
         fsf = ctk.CTkFrame(scroll, fg_color="transparent"); fsf.pack(fill="x", pady=(0, 16))
-        self.font_slider = ctk.CTkSlider(fsf, from_=9, to=20, number_of_steps=11, fg_color=BORDER_COLOR,
-                                         progress_color=self.accent, command=self._on_font_change)
+        self.font_slider = ctk.CTkSlider(fsf, from_=9, to=20, number_of_steps=11, fg_color=BORDER_COLOR, progress_color=self.accent, command=self._on_font_change)
         self.font_slider.set(self.font_size); self.font_slider.pack(side="left", fill="x", expand=True, padx=(0, 10))
         self.font_size_lbl = ctk.CTkLabel(fsf, text=f"{self.font_size}px", font=(FONT, 11), text_color=TXT, width=50)
         self.font_size_lbl.pack(side="right")
@@ -648,8 +684,7 @@ class ZerioHub(ctk.CTk):
             if not content.endswith("\n"): content += "\n"
             self.sel_script.write_text(content, encoding="utf-8"); self._original_content = content
             self._set_status(f"Saved {self.sel_script.name}")
-        except Exception as e:
-            self._set_status(f"Save error: {e}")
+        except Exception as e: self._set_status(f"Save error: {e}")
 
     def _toggle_favorite(self):
         if not self.sel_script: return
@@ -732,13 +767,14 @@ class ZerioHub(ctk.CTk):
                 self.script_folder = d.get("script_folder", ""); self.auto_refresh = d.get("auto_refresh", True)
                 self.auto_save = d.get("auto_save", False); self.favorites = d.get("favorites", [])
                 self.recent_projects = d.get("recent_projects", [])
+                self.downloaded_builtins = d.get("downloaded_builtins", False)
         except: pass
 
     def _save_settings(self):
         try:
             SETTINGS_FP.write_text(json.dumps({"accent": self.accent, "font_size": self.font_size, "script_folder": self.script_folder,
                 "auto_refresh": self.auto_refresh, "auto_save": self.auto_save, "favorites": self.favorites,
-                "recent_projects": self.recent_projects}, indent=2), encoding="utf-8")
+                "recent_projects": self.recent_projects, "downloaded_builtins": self.downloaded_builtins}, indent=2), encoding="utf-8")
         except: pass
 
     def _tick_time(self):
