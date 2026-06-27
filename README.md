@@ -19,6 +19,11 @@ Yeah, I know, not a lot
 
 ---
 
+## Photo
+
+<img width="1326" height="808" alt="image" src="https://github.com/user-attachments/assets/2f473e53-f7da-4d9b-a117-1eb0e93eb0c5" />
+
+
 ## 📦 Requirements
 
 - Python 3.10+
