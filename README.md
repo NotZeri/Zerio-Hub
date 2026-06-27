@@ -19,6 +19,12 @@ The setting save should be here
 C:\Users\YourName\.zerio_hub_settings.json
 ```
 
+And Projects get saved too they should be here
+
+```
+C:/Users/YourName/Documents/ZerioProjects/NameOfProject
+```
+
 ## ✨ Features
 
 ![Status](https://img.shields.io/badge/Status-In%20Development-orange)
