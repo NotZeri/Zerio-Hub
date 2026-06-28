@@ -1,13 +1,14 @@
-# Should be easy to read!
+# Should be easy to read
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# IMPORTS & CRASH FIX
+# IMPORTS
 # ═══════════════════════════════════════════════════════════════════════════════
 import sys, os, json, subprocess, threading, time, platform, tkinter as tk, io, webbrowser
 from datetime import datetime
 from pathlib import Path
 from tkinter import filedialog
 
+# Crash fix is still here btw
 # Force Windows to use UTF-8 so special characters never crash the app again
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
 sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
@@ -134,19 +135,77 @@ class ZerioHub(ctk.CTk):
         self.fav_filter      = False
         self._original_content = ""
         self.downloaded_builtins = False
+        
+        # Performance state
+        self.performance_mode = "Balanced"
+        self.stats_interval = 2000
+        self.refresh_interval = 8.0
 
         self._load_settings()
+        self._apply_perf_mode(self.performance_mode)
         
         self._build_mini_button()
         self.splash = SplashScreen(self)
         self._build_main_container()
 
+        # Initialize non-blocking CPU check
+        psutil.cpu_percent(interval=None)
+        
         self._tick_time()
         self._tick_stats()
-        self._tick_refresh()
         self._tick_process()
 
+        # Start background folder scanner
+        self.scan_thread = threading.Thread(target=self._bg_scan_folder, daemon=True)
+        self.scan_thread.start()
+
         self.after(3800, self._fade_in)
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # PERFORMANCE & CPU LIMITER
+    # ──────────────────────────────────────────────────────────────────────────
+    def _apply_perf_mode(self, mode):
+        if "Eco" in mode:
+            self.stats_interval = 5000
+            self.refresh_interval = 15.0
+            self._set_process_priority("Eco")
+        elif "Balanced" in mode:
+            self.stats_interval = 2000
+            self.refresh_interval = 8.0
+            self._set_process_priority("Balanced")
+        else:
+            self.stats_interval = 1000
+            self.refresh_interval = 4.0
+            self._set_process_priority("High")
+
+    def _set_perf_mode(self, choice):
+        self.performance_mode = choice
+        self._apply_perf_mode(choice)
+        self._save_settings()
+
+    def _set_process_priority(self, mode):
+        try:
+            p = psutil.Process(os.getpid())
+            if sys.platform == "win32":
+                if mode == "Eco":
+                    p.nice(psutil.IDLE_PRIORITY_CLASS)
+                elif mode == "Balanced":
+                    p.nice(psutil.BELOW_NORMAL_PRIORITY_CLASS)
+                else:
+                    p.nice(psutil.NORMAL_PRIORITY_CLASS)
+        except: pass
+
+    def _bg_scan_folder(self):
+        while True:
+            if self.auto_refresh and self.script_folder and self.page == "scripts":
+                try:
+                    new_scripts = sorted([p for p in Path(self.script_folder).rglob("*") if p.suffix in (".py", ".pyw")], key=lambda p: p.name.lower())
+                    # Only update UI if file list has changed
+                    if len(new_scripts) != len(self.scripts) or any(a != b for a, b in zip(new_scripts, self.scripts)):
+                        self.scripts = new_scripts
+                        self.after(0, self._filter_scripts)
+                except: pass
+            time.sleep(self.refresh_interval)
 
     # ──────────────────────────────────────────────────────────────────────────
     # SLEEK TRANSPARENT MINI OPEN BUTTON
@@ -426,7 +485,7 @@ class ZerioHub(ctk.CTk):
             setattr(self, lbl_name, lbl)
 
     # ──────────────────────────────────────────────────────────────────────────
-    # CONTENT AREA & STATUS BAR
+    # CONTAINER AREA & STATUS BAR < did i spell container correct?
     # ──────────────────────────────────────────────────────────────────────────
     def _build_content_area(self):
         self.content_frame = ctk.CTkFrame(self.main_frame, fg_color=PANEL_COLOR, corner_radius=14)
@@ -532,7 +591,7 @@ class ZerioHub(ctk.CTk):
         self.editor.grid(row=1, column=0, sticky="nsew", padx=4, pady=4)
 
     # ══════════════════════════════════════════════════════════════════════════
-    # REAL TERMINAL EXECUTION
+    # TERMINAL EXECUTION
     # ══════════════════════════════════════════════════════════════════════════
     def _run_script(self):
         if not self.sel_script: self._set_status("No script selected"); return
@@ -562,7 +621,7 @@ class ZerioHub(ctk.CTk):
         self.after(1000, self._tick_process)
 
     # ══════════════════════════════════════════════════════════════════════════
-    # SETTINGS, PROJECTS, ABOUT PAGES
+    # SETTINGS, PROJECTS, ABOUT PAGES, SIGMA SKIBID
     # ══════════════════════════════════════════════════════════════════════════
     def _build_settings_page(self):
         page = ctk.CTkFrame(self.content_frame, fg_color=PANEL_COLOR, corner_radius=0)
@@ -593,6 +652,17 @@ class ZerioHub(ctk.CTk):
         self.startup_folder_lbl.pack(side="left", fill="x", expand=True)
         ctk.CTkButton(sff, text="Change", width=70, height=28, font=(FONT, 10), fg_color=BORDER_COLOR, text_color=TXT,
                       hover_color=HOVER_ACC, corner_radius=6, command=self._change_startup_folder).pack(side="right")
+                      
+        self._section_label(scroll, "Performance & CPU Limiter")
+        ctk.CTkLabel(scroll, text="Lower process priority and stat polling to reduce CPU usage.", font=(FONT, 9), text_color=SUBTXT).pack(anchor="w", pady=(0, 6))
+        pf = ctk.CTkFrame(scroll, fg_color="transparent"); pf.pack(fill="x", pady=(0, 16))
+        self.perf_menu = ctk.CTkOptionMenu(pf, values=["Eco (Low CPU)", "Balanced", "High"], 
+                                           fg_color=BORDER_COLOR, button_color=self.accent, 
+                                           button_hover_color=HOVER_ACC, text_color=TXT, 
+                                           dropdown_fg_color="#1a1a1a", dropdown_hover_color="#2a2a2a", dropdown_text_color=TXT,
+                                           command=self._set_perf_mode, height=28, font=(FONT, 10))
+        self.perf_menu.set(self.performance_mode)
+        self.perf_menu.pack(side="left", fill="x", expand=True)
 
         self._section_label(scroll, "Behavior")
         self.auto_refresh_var = ctk.BooleanVar(value=self.auto_refresh)
@@ -698,9 +768,6 @@ class ZerioHub(ctk.CTk):
         self._filter_scripts()
 
     def _refresh_scripts(self): self._scan_folder(); self._set_status("Refreshed")
-    def _tick_refresh(self):
-        if self.auto_refresh and self.script_folder and self.page == "scripts": self._scan_folder()
-        self.after(5000, self._tick_refresh)
 
     def _set_accent(self, color, name):
         self.accent = color
@@ -757,7 +824,7 @@ class ZerioHub(ctk.CTk):
                           hover_color=HOVER_ACC, corner_radius=6, command=lambda pp=p: self._open_project_path(pp)).pack(side="right", padx=10, pady=10)
 
     # ══════════════════════════════════════════════════════════════════════════
-    # SETTINGS PERSISTENCE & TICKS
+    # SETTINGS & TICKS SO CPU GO NO BOOM
     # ══════════════════════════════════════════════════════════════════════════
     def _load_settings(self):
         try:
@@ -768,13 +835,14 @@ class ZerioHub(ctk.CTk):
                 self.auto_save = d.get("auto_save", False); self.favorites = d.get("favorites", [])
                 self.recent_projects = d.get("recent_projects", [])
                 self.downloaded_builtins = d.get("downloaded_builtins", False)
+                self.performance_mode = d.get("performance_mode", "Balanced")
         except: pass
 
     def _save_settings(self):
         try:
             SETTINGS_FP.write_text(json.dumps({"accent": self.accent, "font_size": self.font_size, "script_folder": self.script_folder,
                 "auto_refresh": self.auto_refresh, "auto_save": self.auto_save, "favorites": self.favorites,
-                "recent_projects": self.recent_projects, "downloaded_builtins": self.downloaded_builtins}, indent=2), encoding="utf-8")
+                "recent_projects": self.recent_projects, "downloaded_builtins": self.downloaded_builtins, "performance_mode": self.performance_mode}, indent=2), encoding="utf-8")
         except: pass
 
     def _tick_time(self):
@@ -782,13 +850,16 @@ class ZerioHub(ctk.CTk):
 
     def _tick_stats(self):
         try:
-            cpu = psutil.cpu_percent(interval=0.5); mem = psutil.virtual_memory(); disk = psutil.disk_usage('/')
+            
+            cpu = psutil.cpu_percent(interval=None)
+            mem = psutil.virtual_memory()
+            disk = psutil.disk_usage('/')
             self.cpu_bar.set(cpu / 100); self.cpu_lbl.configure(text=f"{cpu:.0f}%")
             self.ram_bar.set(mem.percent / 100); self.ram_lbl.configure(text=f"{mem.percent:.0f}%")
             self.disk_bar.set(disk.percent / 100); self.disk_lbl.configure(text=f"{disk.percent:.0f}%")
             self.status_right.configure(text=f"CPU {cpu:.0f}%  |  RAM {mem.percent:.0f}%")
         except: pass
-        self.after(2000, self._tick_stats)
+        self.after(self.stats_interval, self._tick_stats)
 
 if __name__ == "__main__":
     app = ZerioHub()
